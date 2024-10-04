@@ -1,12 +1,14 @@
 const mongoose = require('mongoose');
 
-// Create schema for reviews
-const reviewSchema = new mongoose.Schema({
+const ReviewSchema = new mongoose.Schema({
     rating: { type: Number, required: true },
     comment: { type: String, required: true },
-    touristLocation: { type: String, required: true }
+    touristLocation: { type: String, required: true },
+    user: {  type: String, required: true},
+    initial:{ type: String, required: true } // Reference to User
 });
 
-// Export the model
-const Review = mongoose.model('Review', reviewSchema);
+const Review = mongoose.model('Review', ReviewSchema);
 module.exports = Review;
+
+
