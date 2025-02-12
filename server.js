@@ -1,20 +1,19 @@
-// server.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 
 require('dotenv').config();
-const Review = require('./models/Review');
-const User = require('./models/user'); // Correctly imported user model
+const Review = require('./models/Review'); 
+const User = require('./models/user'); 
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 3004; // Use environment variable for PORT
+const PORT = process.env.PORT || 3004;
 
-// Connect to MongoDB Atlas
+// MongoDB Connection
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
@@ -22,6 +21,7 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log('MongoDB connected'))
 .catch((error) => console.error('MongoDB connection error:', error));
 
+// Nodemailer Config
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -32,48 +32,48 @@ const transporter = nodemailer.createTransport({
 
 let otpStore = {};
 
+// 📌 Fetch Reviews (Including Image URL)
 app.get('/test/reviews/:location', async (req, res) => {
-  const { location } = req.params; // Get the location from the request params
   try {
-    // Fetch reviews based on the tourist location
-    const reviews = await Review.find({ touristLocation: location });
-    res.status(200).json(reviews);  // Send the retrieved reviews as JSON
+    const reviews = await Review.find({ touristLocation: req.params.location });
+    res.status(200).json(reviews);
   } catch (error) {
     res.status(500).json({ message: 'Error retrieving reviews', error });
   }
 });
 
+// 📌 Submit a Review (Including Image URL + Heading)
 app.post('/test/reviews', async (req, res) => {
-  const { rating, comment, touristLocation, user } = req.body;
+  const { heading, rating, comment, touristLocation, username, img } = req.body;
 
-  // Check if all fields are present
-  if (!rating || !comment || !touristLocation || !user) {
+  // ✅ Validate all required fields, including heading
+  if (!heading || !rating || !comment || !touristLocation || !username || !img) {
       return res.status(400).json({ message: 'All fields are required' });
   }
 
   try {
-      // Extract the initial from the username
-      const initial = user.charAt(0).toUpperCase(); // Get the first letter and capitalize it
+      const initial = username.charAt(0).toUpperCase(); // Extract first letter of username
 
-      // Create a new review object
+      // ✅ Create a new Review document with heading included
       const newReview = new Review({
+          heading,   // Added heading field
           rating,
           comment,
           touristLocation,
-          user,
-          initial // Associate the review with the user
+          username,
+          initial,
+          img, 
       });
 
-      // Save the new review to the database
       await newReview.save();
-      res.status(201).json(newReview);
+      res.status(201).json({ message: "Review submitted successfully!", review: newReview });
   } catch (error) {
-      res.status(500).json({ message: 'Error saving review', error });
+      console.error("🚨 Error saving review:", error);
+      res.status(500).json({ message: 'Error saving review', error: error.message });
   }
 });
 
-
-// Endpoint for user signup
+// 📌 User Signup (OTP Verification)
 app.post("/api/signup", async (req, res) => {
   const { username, email, password } = req.body;
 
@@ -81,18 +81,17 @@ app.post("/api/signup", async (req, res) => {
     return res.status(400).send("All fields are required");
   }
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate a 6-digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
   otpStore[email] = otp;
 
-  const mailOptions = {
-    from: process.env.EMAIL_USER || 'navizit27@gmail.com',
-    to: email,
-    subject: 'Your OTP Code',
-    text: `Your OTP code is ${otp}`,
-  };
-
   try {
-    await transporter.sendMail(mailOptions);
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER || 'navizit27@gmail.com',
+      to: email,
+      subject: 'Your OTP Code',
+      text: `Your OTP code is ${otp}`,
+    });
+
     res.status(200).send("OTP sent to your email.");
   } catch (error) {
     console.error("Error sending OTP:", error);
@@ -100,37 +99,25 @@ app.post("/api/signup", async (req, res) => {
   }
 });
 
-// Endpoint for verifying OTP and signing up user
+// 📌 Verify OTP & Create User
 app.post("/api/verify-otp", async (req, res) => {
   const { email, otp, username, password } = req.body;
 
-  // Log received data for debugging
-  console.log("Received Data:", { email, otp, username, password });
-
-  // Check if OTP is correct
   if (otpStore[email] === otp) {
     try {
-      // Ensure email and username are not null or empty
       if (!email || !username || !password) {
-        return res.status(400).send("Error: All fields are required.");
+        return res.status(400).send("All fields are required.");
       }
 
-      // Check if email or username already exists in the database
-      const existingEmail = await User.findOne({ email });
-      const existingUsername = await User.findOne({ username });
+      const existingUser = await User.findOne({ $or: [{ email }, { username }] });
 
-      if (existingEmail) {
-        return res.status(400).send("Error: Email already exists");
-      }
-      if (existingUsername) {
-        return res.status(400).send("Error: Username already exists");
+      if (existingUser) {
+        return res.status(400).send("Email or Username already exists");
       }
 
-      // Create the new user
       const newUser = new User({ username, email, password });
       await newUser.save();
 
-      // Clear OTP and respond with success
       delete otpStore[email];
       res.status(201).send("User signed up successfully");
 
@@ -143,9 +130,7 @@ app.post("/api/verify-otp", async (req, res) => {
   }
 });
 
-
-
-// Endpoint for user login
+// 📌 User Login
 app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -162,13 +147,12 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-// Define a simple error handler for undefined routes
-app.use((req, res, next) => {
+// 📌 Handle Undefined Routes
+app.use((req, res) => {
   res.status(404).send('404 Not Found');
-  console.log("Route not found");
 });
 
-// Start the server
+// 📌 Start Server
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
