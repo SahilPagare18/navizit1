@@ -158,62 +158,6 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-// 📌 Recommendation System (Fetching and Running recommendation.py)
-// app.post("/api/recommend", (req, res) => {
-//   const { email } = req.body;
-//   if (!email) {
-//     return res.status(400).json({ error: "Email is required" });
-//   }
-
-//   const pythonScriptPath = path.join(__dirname, "ml", "recommendation.py");
-//   console.log("Script path:", pythonScriptPath);
-//   const pythonProcess = spawn("python", [pythonScriptPath, email]);
-  
-//   let output = "";
-//   let errorOutput = "";
-
-//   pythonProcess.stdout.on("data", (chunk) => {
-//     output += chunk.toString();
-//   });
-
-//   pythonProcess.stderr.on("data", (chunk) => {
-//     errorOutput += chunk.toString();
-//   });
-
-//   pythonProcess.on("close", (code) => {
-//     console.log(`Python script exited with code ${code}`);
-//     console.log("Raw stdout:", output.trim());
-//     console.log("Raw stderr:", errorOutput.trim());
-
-//     if (code !== 0) {
-//       return res.status(500).json({
-//         error: "Failed to generate recommendations",
-//         details: errorOutput || "Unknown error",
-//       });
-//     }
-
-//     if (!output.trim()) {
-//       return res.status(500).json({ error: "No output received from recommendation script" });
-//     }
-
-//     try {
-//       const recommendations = JSON.parse(output.trim());
-//       res.status(200).json({ recommendations });
-//     } catch (error) {
-//       console.error("Error parsing recommendations:", error.message);
-//       res.status(500).json({
-//         error: "Failed to parse recommendations",
-//         rawOutput: output.trim(),
-//       });
-//     }
-//   });
-
-//   pythonProcess.on("error", (err) => {
-//     console.error("Spawn error:", err.message);
-//     res.status(500).json({ error: "Failed to start recommendation script", details: err.message });
-//   });
-// });
-
 app.post("/api/recommend", async (req, res) => {
   const { email } = req.body;
   if (!email) {
@@ -261,72 +205,6 @@ app.post("/api/recommend", async (req, res) => {
     });
   }
 });
-
-
-// app.post("/api/ratingbase", (req, res) => {
-//   const { email } = req.body;
-
-//   if (!email) {
-//     return res.status(400).json({ error: "Email is required" });
-//   }
-
-//   const pythonScriptPath = path.join(__dirname, "ml", "ratingbase.py");
-//   console.log("Script path:", pythonScriptPath);
-
-//   const pythonProcess = spawn("python", [pythonScriptPath, email]);
-
-//   let output = "";
-//   let errorOutput = "";
-
-//   // Capture stdout (expected JSON response)
-//   pythonProcess.stdout.on("data", (chunk) => {
-//     output += chunk.toString();
-//   });
- 
-//   // Capture stderr (for debugging)
-//   pythonProcess.stderr.on("data", (chunk) => {
-//     errorOutput += chunk.toString();
-//   });
-
-//   pythonProcess.on("close", (code) => {
-//     console.log(`Python script exited with code ${code}`);
-//     console.log("Raw stdout:", output.trim());
-//     console.log("Raw stderr:", errorOutput.trim());
-
-//     if (code !== 0) {
-//       return res.status(500).json({
-//         error: "Failed to generate recommendations",
-//         details: errorOutput || "Unknown error",
-//       });
-//     }
-
-//     if (!output.trim()) {
-//       return res.status(500).json({ error: "No output received from recommendation script" });
-//     }
-
-//     try {
-//       // Ensure output is valid JSON
-//       const recommendations = JSON.parse(output.trim());
-
-//       if (!Array.isArray(recommendations)) {
-//         throw new Error("Parsed output is not an array");
-//       }
-
-//       res.status(200).json({ recommendations });
-//     } catch (error) {
-//       console.error("Error parsing recommendations:", error.message);
-//       res.status(500).json({
-//         error: "Failed to parse recommendations",
-//         rawOutput: output.trim(),
-//       });
-//     }
-//   });
-
-//   pythonProcess.on("error", (err) => {
-//     console.error("Spawn error:", err.message);
-//     res.status(500).json({ error: "Failed to start recommendation script", details: err.message });
-//   });
-// });
 
 app.post("/api/ratingbase", async (req, res) => {
   const { email } = req.body;
