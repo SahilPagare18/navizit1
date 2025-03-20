@@ -1,8 +1,11 @@
 import sys
 import json
+import os
 import pandas as pd
+from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from pymongo import MongoClient
+from flask import Flask, request, jsonify
 
 # MongoDB connection
 uri = "mongodb+srv://pratikkhodka137:Khodka@cluster0.3nkyf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
@@ -93,14 +96,41 @@ def recommend(email):
     return recommended_places[:6]  # Return whatever we found, up to 6
 
 # Main execution: Get email from command-line argument
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "No email provided"}))
-        sys.exit(1)
+app = Flask(__name__)
 
-    email = sys.argv[1]  # Email passed from Express.js
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({"message": "Welcome to the Recommendation Service! Use /recommend with POST or GET."}), 200
+
+@app.route('/recommend', methods=['POST', 'GET'])
+def recommend_endpoint():
+    if request.method == 'POST':
+        data = request.get_json()
+        email = data.get('email') if data else None
+    else:  # GET
+        email = request.args.get('email')
+
+    if not email:
+        return jsonify({"error": "No email provided"}), 400
+
     try:
         recommendations = recommend(email)
-        print(json.dumps(recommendations))  # Output JSON to stdout
+        if not recommendations:
+            return jsonify({"message": "No recommendations found for this email"}), 200
+        return jsonify(recommendations), 200
     except Exception as e:
-        print(json.dumps({"error": str(e)}))  # Output error as JSONs
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+# Main execution for command-line or Flask
+if __name__ == "__main__":
+    if len(sys.argv) > 1:  # Command-line mode
+        email = sys.argv[1]
+        try:
+            recommendations = recommend(email)
+            print(json.dumps(recommendations))  # Output JSON to stdout
+        except Exception as e:
+            print(json.dumps({"error": f"Recommendation failed: {str(e)}"}), file=sys.stderr)
+            sys.exit(1)
+    else:  # Flask mode
+        port = int(os.environ.get('PORT', 5000))
+        app.run(host='0.0.0.0', port=port)

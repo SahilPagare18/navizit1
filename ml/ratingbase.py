@@ -5,6 +5,11 @@ import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 import sys
 import json
+from flask import Flask, request, jsonify
+import os
+
+# Initialize Flask app
+app = Flask(__name__)
 
 # MongoDB connection
 uri = "mongodb+srv://pratikkhodka137:Khodka@cluster0.3nkyf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
@@ -17,6 +22,10 @@ collection2 = db.reviews
 
 userList = pd.DataFrame(list(collection1.find()))
 ratings = pd.DataFrame(list(collection2.find()))
+
+# Remove MongoDB _id fields for compatibility
+userList = userList.drop(columns=['_id'], errors='ignore')
+ratings = ratings.drop(columns=['_id'], errors='ignore')
 
 # Merge ratings with userList to get user details
 ratings_with_userList = ratings.merge(userList, on="username")
@@ -123,13 +132,35 @@ def get_diverse_recommendations(df):
     result = combined.drop(columns=['rounded_rating', 'rating_count'], errors='ignore')
     return result[['touristLocation', 'avg_rating', 'img']].to_dict('records')
 
-# Main execution
+# Flask endpoint for email-based recommendations
+@app.route('/recommend_by_email', methods=['POST'])
+def get_recommendations_by_email():
+    try:
+        # Get email from the request body
+        data = request.get_json()
+        if not data or 'email' not in data:
+            return jsonify({"error": "No email provided"}), 400
+        
+        email = data['email']
+        recommendations = recommend_by_email(email)
+        return jsonify(recommendations), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Health check endpoint (optional but useful for deployment)
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({"status": "healthy"}), 200
+
+# Main execution (preserved for command-line usage)
 if __name__ == "__main__":
     if len(sys.argv) > 1:
+        # Command-line mode
         email_to_test = sys.argv[1]
         recommendations = recommend_by_email(email_to_test)
-        
-        # Ensure proper JSON output
         sys.stdout.write(json.dumps(recommendations))
     else:
-        sys.stdout.write(json.dumps([{"error": "No email provided"}]))
+        # Flask mode if no arguments provided
+ 
+        port = int(os.environ.get("PORT", 5000))  # Default to 5000 locally, configurable via env
+        app.run(host="0.0.0.0", port=port)

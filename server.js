@@ -8,6 +8,7 @@ const Review = require("./models/Review");
 const Usercats = require("./models/user");
 const path = require("path");
 const { spawn } = require("child_process");
+const axios = require('axios');
 
 const app = express();
 app.use(cors());
@@ -158,125 +159,228 @@ app.post("/api/login", async (req, res) => {
 });
 
 // 📌 Recommendation System (Fetching and Running recommendation.py)
-app.post("/api/recommend", (req, res) => {
+// app.post("/api/recommend", (req, res) => {
+//   const { email } = req.body;
+//   if (!email) {
+//     return res.status(400).json({ error: "Email is required" });
+//   }
+
+//   const pythonScriptPath = path.join(__dirname, "ml", "recommendation.py");
+//   console.log("Script path:", pythonScriptPath);
+//   const pythonProcess = spawn("python", [pythonScriptPath, email]);
+  
+//   let output = "";
+//   let errorOutput = "";
+
+//   pythonProcess.stdout.on("data", (chunk) => {
+//     output += chunk.toString();
+//   });
+
+//   pythonProcess.stderr.on("data", (chunk) => {
+//     errorOutput += chunk.toString();
+//   });
+
+//   pythonProcess.on("close", (code) => {
+//     console.log(`Python script exited with code ${code}`);
+//     console.log("Raw stdout:", output.trim());
+//     console.log("Raw stderr:", errorOutput.trim());
+
+//     if (code !== 0) {
+//       return res.status(500).json({
+//         error: "Failed to generate recommendations",
+//         details: errorOutput || "Unknown error",
+//       });
+//     }
+
+//     if (!output.trim()) {
+//       return res.status(500).json({ error: "No output received from recommendation script" });
+//     }
+
+//     try {
+//       const recommendations = JSON.parse(output.trim());
+//       res.status(200).json({ recommendations });
+//     } catch (error) {
+//       console.error("Error parsing recommendations:", error.message);
+//       res.status(500).json({
+//         error: "Failed to parse recommendations",
+//         rawOutput: output.trim(),
+//       });
+//     }
+//   });
+
+//   pythonProcess.on("error", (err) => {
+//     console.error("Spawn error:", err.message);
+//     res.status(500).json({ error: "Failed to start recommendation script", details: err.message });
+//   });
+// });
+
+app.post("/api/recommend", async (req, res) => {
   const { email } = req.body;
   if (!email) {
     return res.status(400).json({ error: "Email is required" });
   }
 
-  const pythonScriptPath = path.join(__dirname, "ml", "recommendation.py");
-  console.log("Script path:", pythonScriptPath);
-  const pythonProcess = spawn("python", [pythonScriptPath, email]);
+  const pythonServiceUrl = "https://python1-mern-2.onrender.com/recommend";
+  console.log(`Calling Python service at: ${pythonServiceUrl} with email: ${email}`);
 
-  let output = "";
-  let errorOutput = "";
+  try {
+    // Make POST request to the Python Flask service
+    const response = await axios.post(pythonServiceUrl, { email }, {
+      headers: { 'Content-Type': 'application/json' }
+    });
 
-  pythonProcess.stdout.on("data", (chunk) => {
-    output += chunk.toString();
-  });
+    const recommendations = response.data;
 
-  pythonProcess.stderr.on("data", (chunk) => {
-    errorOutput += chunk.toString();
-  });
-
-  pythonProcess.on("close", (code) => {
-    console.log(`Python script exited with code ${code}`);
-    console.log("Raw stdout:", output.trim());
-    console.log("Raw stderr:", errorOutput.trim());
-
-    if (code !== 0) {
-      return res.status(500).json({
-        error: "Failed to generate recommendations",
-        details: errorOutput || "Unknown error",
+    // Handle different response scenarios from the Python service
+    if (Array.isArray(recommendations)) {
+      if (recommendations.length === 0) {
+        return res.status(200).json({ 
+          message: "No recommendations found for this email",
+          recommendations: []
+        });
+      }
+      return res.status(200).json({ recommendations });
+    } else if (recommendations.message) {
+      // Handle "No recommendations found" case from Flask
+      return res.status(200).json({ 
+        message: recommendations.message,
+        recommendations: []
       });
+    } else if (recommendations.error) {
+      // Handle error messages from Flask
+      return res.status(400).json({ error: recommendations.error });
+    } else {
+      throw new Error("Unexpected response format from Python service");
     }
-
-    if (!output.trim()) {
-      return res.status(500).json({ error: "No output received from recommendation script" });
-    }
-
-    try {
-      const recommendations = JSON.parse(output.trim());
-      res.status(200).json({ recommendations });
-    } catch (error) {
-      console.error("Error parsing recommendations:", error.message);
-      res.status(500).json({
-        error: "Failed to parse recommendations",
-        rawOutput: output.trim(),
-      });
-    }
-  });
-
-  pythonProcess.on("error", (err) => {
-    console.error("Spawn error:", err.message);
-    res.status(500).json({ error: "Failed to start recommendation script", details: err.message });
-  });
+  } catch (error) {
+    console.error("Error calling Python service:", error.message);
+    let errorDetails = error.response ? error.response.data : error.message;
+    return res.status(500).json({
+      error: "Failed to fetch recommendations from Python service",
+      details: errorDetails
+    });
+  }
 });
 
 
-app.post("/api/ratingbase", (req, res) => {
+// app.post("/api/ratingbase", (req, res) => {
+//   const { email } = req.body;
+
+//   if (!email) {
+//     return res.status(400).json({ error: "Email is required" });
+//   }
+
+//   const pythonScriptPath = path.join(__dirname, "ml", "ratingbase.py");
+//   console.log("Script path:", pythonScriptPath);
+
+//   const pythonProcess = spawn("python", [pythonScriptPath, email]);
+
+//   let output = "";
+//   let errorOutput = "";
+
+//   // Capture stdout (expected JSON response)
+//   pythonProcess.stdout.on("data", (chunk) => {
+//     output += chunk.toString();
+//   });
+ 
+//   // Capture stderr (for debugging)
+//   pythonProcess.stderr.on("data", (chunk) => {
+//     errorOutput += chunk.toString();
+//   });
+
+//   pythonProcess.on("close", (code) => {
+//     console.log(`Python script exited with code ${code}`);
+//     console.log("Raw stdout:", output.trim());
+//     console.log("Raw stderr:", errorOutput.trim());
+
+//     if (code !== 0) {
+//       return res.status(500).json({
+//         error: "Failed to generate recommendations",
+//         details: errorOutput || "Unknown error",
+//       });
+//     }
+
+//     if (!output.trim()) {
+//       return res.status(500).json({ error: "No output received from recommendation script" });
+//     }
+
+//     try {
+//       // Ensure output is valid JSON
+//       const recommendations = JSON.parse(output.trim());
+
+//       if (!Array.isArray(recommendations)) {
+//         throw new Error("Parsed output is not an array");
+//       }
+
+//       res.status(200).json({ recommendations });
+//     } catch (error) {
+//       console.error("Error parsing recommendations:", error.message);
+//       res.status(500).json({
+//         error: "Failed to parse recommendations",
+//         rawOutput: output.trim(),
+//       });
+//     }
+//   });
+
+//   pythonProcess.on("error", (err) => {
+//     console.error("Spawn error:", err.message);
+//     res.status(500).json({ error: "Failed to start recommendation script", details: err.message });
+//   });
+// });
+
+app.post("/api/ratingbase", async (req, res) => {
   const { email } = req.body;
 
   if (!email) {
     return res.status(400).json({ error: "Email is required" });
   }
 
-  const pythonScriptPath = path.join(__dirname, "ml", "ratingbase.py");
-  console.log("Script path:", pythonScriptPath);
-
-  const pythonProcess = spawn("python", [pythonScriptPath, email]);
-
-  let output = "";
-  let errorOutput = "";
-
-  // Capture stdout (expected JSON response)
-  pythonProcess.stdout.on("data", (chunk) => {
-    output += chunk.toString();
-  });
- 
-  // Capture stderr (for debugging)
-  pythonProcess.stderr.on("data", (chunk) => {
-    errorOutput += chunk.toString();
-  });
-
-  pythonProcess.on("close", (code) => {
-    console.log(`Python script exited with code ${code}`);
-    console.log("Raw stdout:", output.trim());
-    console.log("Raw stderr:", errorOutput.trim());
-
-    if (code !== 0) {
-      return res.status(500).json({
-        error: "Failed to generate recommendations",
-        details: errorOutput || "Unknown error",
-      });
-    }
-
-    if (!output.trim()) {
-      return res.status(500).json({ error: "No output received from recommendation script" });
-    }
-
-    try {
-      // Ensure output is valid JSON
-      const recommendations = JSON.parse(output.trim());
-
-      if (!Array.isArray(recommendations)) {
-        throw new Error("Parsed output is not an array");
+  try {
+    // Make a POST request to the Render-hosted Python service
+    const response = await axios.post(
+      "https://python2-mern.onrender.com/recommend_by_email",
+      { email },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        timeout: 10000, // Optional: Set a timeout (10 seconds) to avoid hanging
       }
+    );
 
-      res.status(200).json({ recommendations });
-    } catch (error) {
-      console.error("Error parsing recommendations:", error.message);
-      res.status(500).json({
-        error: "Failed to parse recommendations",
-        rawOutput: output.trim(),
+    const recommendations = response.data;
+
+    // Validate that the response is an array
+    if (!Array.isArray(recommendations)) {
+      throw new Error("Response from Python service is not an array");
+    }
+
+    res.status(200).json({ recommendations });
+  } catch (error) {
+    console.error("Error fetching recommendations:", error.message);
+
+    // Handle specific axios errors
+    if (error.response) {
+      // The request was made and the server responded with a status code outside 2xx
+      return res.status(500).json({
+        error: "Failed to fetch recommendations from Python service",
+        details: error.response.data,
+        status: error.response.status,
+      });
+    } else if (error.request) {
+      // The request was made but no response was received
+      return res.status(500).json({
+        error: "No response from Python service",
+        details: error.message,
+      });
+    } else {
+      // Something else went wrong (e.g., parsing error, network issue)
+      return res.status(500).json({
+        error: "Error processing recommendation request",
+        details: error.message,
       });
     }
-  });
-
-  pythonProcess.on("error", (err) => {
-    console.error("Spawn error:", err.message);
-    res.status(500).json({ error: "Failed to start recommendation script", details: err.message });
-  });
+  }
 });
 
 // 📌 Handle Undefined Routes
